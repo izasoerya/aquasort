@@ -1,24 +1,43 @@
 #pragma once
 
+#include "esp_wifi.h"
+
 #include <zephyr/kernel.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_mgmt.h>
-#include <zephyr/net/wifi_mgmt.h>
-#include <zephyr/net/http/client.h>
+#include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
+#include <zephyr/net/wifi_mgmt.h>
+#include <zephyr/sys/printk.h>
+
+enum wifi_tx_power
+{
+    WIFI_TX_POWER_2_0_DBM = 8,
+    WIFI_TX_POWER_5_0_DBM = 20,
+    WIFI_TX_POWER_7_0_DBM = 28,
+    WIFI_TX_POWER_8_5_DBM = 34,
+    WIFI_TX_POWER_11_0_DBM = 44,
+    WIFI_TX_POWER_13_0_DBM = 52,
+    WIFI_TX_POWER_14_0_DBM = 56,
+    WIFI_TX_POWER_15_0_DBM = 60,
+    WIFI_TX_POWER_16_5_DBM = 66,
+    WIFI_TX_POWER_18_0_DBM = 72,
+    WIFI_TX_POWER_20_0_DBM = 80,
+};
 
 class WiFiService
 {
 protected:
-    int postInternal(const char *url, const char *payload, bool secure,
-                     const char *ca_cert,
+    int postInternal(const char *url, const char *payload, bool secure, const char *ca_cert,
                      const char *const *header_fields);
 
-    int postSecureWithHeaders(const char *url, const char *payload,
-                              const char *ca_cert,
+    int postSecureWithHeaders(const char *url, const char *payload, const char *ca_cert,
                               const char *const *header_fields);
+
+    int sendRequest(int sock, const char *host, const char *path, const char *payload,
+                    const char *const *header_fields);
 
 private:
     net_if *_iface = nullptr;
@@ -27,6 +46,7 @@ private:
     k_sem _connected_sem;
     k_sem _ipv4_sem;
     int _connect_status = -1;
+    bool _callbacks_registered = false;
 
     static void onWifiEvent(net_mgmt_event_callback *cb, uint64_t mgmt_event, net_if *iface)
     {
@@ -90,6 +110,10 @@ public:
      * @retval `-EIO`         Wi-Fi connection failed.
      */
     int connect(const char *ssid, const char *psk, k_timeout_t timeout = K_SECONDS(15));
+
+    const char *localIP();
+
+    esp_err_t setTxPower(wifi_tx_power power = WIFI_TX_POWER_8_5_DBM);
 
     /**
      * @brief Send an HTTP POST request.
