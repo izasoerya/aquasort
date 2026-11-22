@@ -4,6 +4,7 @@
 int main()
 {
     TaskSensorContext sensorCtx;
+    TaskWiFiContext inetCtx;
 
     static uint16_t intCounter[4]{};
     static uint64_t lastTriggerMs[4]{};
@@ -69,6 +70,7 @@ int main()
             {
                 for (uint8_t i = 0; i < 4; i++)
                     sensorCtx.sensors[i].disableInterrupt();
+                MainApplication::pushDataToSupabase(&inetCtx, intCounter);
                 memset(intCounter, 0, sizeof(intCounter));
             }
         }
