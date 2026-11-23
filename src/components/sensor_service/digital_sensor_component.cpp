@@ -27,7 +27,7 @@ const int8_t DigitalSensorComponent::beginInterrupt(std::function<void()> cb)
 
 int8_t DigitalSensorComponent::enableInterrupt()
 {
-    return gpio_pin_interrupt_configure_dt(_pin, GPIO_INT_EDGE_TO_INACTIVE);
+    return gpio_pin_interrupt_configure_dt(_pin, GPIO_INT_EDGE_TO_ACTIVE);
 }
 
 int8_t DigitalSensorComponent::disableInterrupt()
