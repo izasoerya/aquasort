@@ -38,23 +38,40 @@ public:
         return stateButton;
     }
 
-    static int16_t pushDataToSupabase(void *pvParam, uint16_t *payload)
+    static bool beginInternet(void *pvParam)
     {
         TaskWiFiContext *ctx = static_cast<TaskWiFiContext *>(pvParam);
 
-        ctx->wifi.connect(ctx->ssid, ctx->password);
-        while (!ctx->wifi.isConnected())
-            k_msleep(50);
-        const char *localIP = ctx->wifi.localIP();
+        if (ctx->wifi.isConnected() && ctx->wifi.localIP() != nullptr)
+            return true; // fast path: already online
+
+        int ret = ctx->wifi.connect(ctx->ssid, ctx->password, K_SECONDS(15));
+        if (ret != 0)
+        {
+            printk("Wi-Fi connect failed: %d\n", ret);
+            return false;
+        }
+
+        const char *ip = ctx->wifi.localIP();
+        printk("Device IP: %s\n", ip ? ip : "(none)");
+        return ip != nullptr;
+    }
+
+    static int16_t pushDataToSupabase(void *pvParam, uint16_t *payload)
+    {
+        TaskWiFiContext *ctx = static_cast<TaskWiFiContext *>(pvParam);
 
         static char buf[128];
         snprintf(
             buf, sizeof(buf),
             "{\"fish_count_0\":%u,\"fish_count_1\":%u,\"fish_count_2\":%u,\"fish_count_3\":%u}",
             payload[0], payload[1], payload[2], payload[3]);
-
-        int res = ctx->supa.post(ctx->table, buf);
-        return res;
+        if (beginInternet(ctx))
+        {
+            int res = ctx->supa.post(ctx->table, buf);
+            return res;
+        }
+        return -ENOTCONN;
     }
 };
 
