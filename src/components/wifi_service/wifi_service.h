@@ -3,12 +3,12 @@
 #include "esp_wifi.h"
 
 #include <zephyr/kernel.h>
+#include <zephyr/net/hostname.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/socket.h>
-#include <zephyr/net/tls_credentials.h>
 #include <zephyr/net/wifi_mgmt.h>
 #include <zephyr/sys/printk.h>
 
@@ -91,6 +91,16 @@ private:
 public:
     WiFiService();
     virtual ~WiFiService() = default;
+
+    /**
+     * @brief Set the network hostname for this device.
+     * @param hostname Null-terminated device hostname.
+     * @retval 0         Hostname set successfully.
+     * @retval -ENOTSUP  Dynamic network hostnames are disabled.
+     * @retval -EINVAL   The hostname is null or invalid.
+     * @retval Negative  Other Zephyr network hostname error.
+     */
+    int setHostname(const char *hostname);
 
     /**
      * @brief           Retrieve Wi-Fi connection state

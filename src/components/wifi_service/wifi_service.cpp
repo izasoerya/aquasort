@@ -14,6 +14,22 @@ bool WiFiService::isConnected()
     return _connect_status == 0 ? true : false;
 }
 
+int WiFiService::setHostname(const char *hostname)
+{
+    if (hostname == nullptr)
+    {
+        return -EINVAL;
+    }
+
+    size_t length = strlen(hostname);
+    if (length == 0)
+    {
+        return -EINVAL;
+    }
+
+    return net_hostname_set(hostname, length);
+}
+
 int WiFiService::connect(const char *ssid, const char *psk, k_timeout_t timeout)
 {
     _iface = net_if_get_default();

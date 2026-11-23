@@ -3,8 +3,9 @@
 
 struct TaskWiFiContext
 {
-    const char *ssid = "4G-UFI-CCDs";
-    const char *password = "1234567890";
+    const char *ssid = "Subhanallah";
+    const char *password = "muhammadnabiyullah";
+    const char *hostname = "aquasort_device";
 
     const char *projectUrl = "https://gothabjdasaphwzrjnto.supabase.co";
     const char *publishKey = "sb_publishable_Dx3vXSh8qdQhM1Zi_V1MTQ_ifqdbX1o";
@@ -15,5 +16,6 @@ struct TaskWiFiContext
 
     TaskWiFiContext() : supa(SupabaseService(projectUrl, publishKey))
     {
+        wifi.setHostname(hostname);
     }
 };
