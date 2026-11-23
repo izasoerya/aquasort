@@ -2,6 +2,7 @@
 #define TASK_SENSOR_CONTEXT_H
 
 #include "../components/sensor_service/digital_sensor_component.h"
+#include "../components/sensor_service/pass_counter_component.h"
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 
@@ -13,7 +14,7 @@ struct TaskSensorContext
         GPIO_DT_SPEC_GET(DT_NODELABEL(ir_2), gpios),
         GPIO_DT_SPEC_GET(DT_NODELABEL(ir_3), gpios),
     };
-    DigitalSensorComponent sensors[4];
+    PassCounterComponent sensors[4];
 
     inline static constexpr struct gpio_dt_spec buttonSpec[2] = {
         GPIO_DT_SPEC_GET(DT_NODELABEL(start_button), gpios),
@@ -21,16 +22,23 @@ struct TaskSensorContext
     };
     DigitalSensorComponent buttons[2];
 
+    inline static constexpr struct gpio_dt_spec pumpSpec =
+        GPIO_DT_SPEC_GET(DT_NODELABEL(pump_0), gpios);
+    DigitalSensorComponent pump;
+
     TaskSensorContext()
         : sensors{
-              DigitalSensorComponent(&sensorSpec[0]),
-              DigitalSensorComponent(&sensorSpec[1]),
-              DigitalSensorComponent(&sensorSpec[2]),
-              DigitalSensorComponent(&sensorSpec[3]),
+              PassCounterComponent(&sensorSpec[0]),
+              PassCounterComponent(&sensorSpec[1]),
+              PassCounterComponent(&sensorSpec[2]),
+              PassCounterComponent(&sensorSpec[3]),
           },
           buttons{
               DigitalSensorComponent(&buttonSpec[0]),
               DigitalSensorComponent(&buttonSpec[1]),
+          },
+          pump{
+              DigitalSensorComponent(&pumpSpec),
           }
     {
     }
