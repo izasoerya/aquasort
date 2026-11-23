@@ -1,80 +1,76 @@
+#include "components/ota_service/ota_service.h"
 #include "services/main_application.h"
 #include "task_sensor_context.h"
+#include <cerrno>
+#include <zephyr/sys/reboot.h>
 
 int main()
 {
     TaskSensorContext sensorCtx;
     TaskWiFiContext inetCtx;
 
+    if (!MainApplication::beginInternet(&inetCtx))
+        sys_reboot(SYS_REBOOT_COLD); // Assume it's Hang
+    OTAService otaService;
+    if (otaService.start(8080) == 0)
+        OTAService::confirmImage();
+
     static uint16_t intCounter[4]{};
-    static uint64_t lastTriggerMs[4]{};
-    const uint64_t debounceMs = 30;
     std::function<void()> cbs[4] = {
-        []()
-        {
-            const uint64_t now = k_uptime_get();
-            if (now - lastTriggerMs[0] >= debounceMs)
-            {
-                lastTriggerMs[0] = now;
-                intCounter[0]++;
-            }
-        },
-        []()
-        {
-            const uint64_t now = k_uptime_get();
-            if (now - lastTriggerMs[1] >= debounceMs)
-            {
-                lastTriggerMs[1] = now;
-                intCounter[1]++;
-            }
-        },
-        []()
-        {
-            const uint64_t now = k_uptime_get();
-            if (now - lastTriggerMs[2] >= debounceMs)
-            {
-                lastTriggerMs[2] = now;
-                intCounter[2]++;
-            }
-        },
-        []()
-        {
-            const uint64_t now = k_uptime_get();
-            if (now - lastTriggerMs[3] >= debounceMs)
-            {
-                lastTriggerMs[3] = now;
-                intCounter[3]++;
-            }
-        },
+        []() { intCounter[0]++; },
+        []() { intCounter[1]++; },
+        []() { intCounter[2]++; },
+        []() { intCounter[3]++; },
     };
 
     MainApplication::initSensors(&sensorCtx, cbs);
     MainApplication::initButtons(&sensorCtx);
+    for (uint8_t i = 0; i < 4; i++)
+        sensorCtx.sensors[i].disableInterrupt();
+    if (sensorCtx.pump.beginOutput() != 0)
+        printk("Pump GPIO init failed\n");
+    sensorCtx.pump.set(false);
+
+    bool isInterruptEnabled = false;
+    bool prevPressed = false;
+    uint64_t lastPressMs = 0;
+    const uint64_t buttonDebounceMs = 50;
 
     while (1)
     {
-        bool *ptrStateButtons = MainApplication::readButtons(&sensorCtx);
-        bool stateButtons[2] = {ptrStateButtons[0], ptrStateButtons[1]};
-        static bool isInterruptEnabled = stateButtons[0];
+        const bool pressed = MainApplication::readButtons(&sensorCtx)[0];
 
-        static uint64_t prev = k_uptime_get();
-        if (k_uptime_get() - prev >= 1000 && stateButtons[0])
+        if (pressed && !prevPressed && k_uptime_get() - lastPressMs >= buttonDebounceMs)
         {
-            prev = k_uptime_get();
-
+            lastPressMs = k_uptime_get();
             isInterruptEnabled = !isInterruptEnabled;
+            printk("Button Sampling Pressed: %s\n", isInterruptEnabled ? "start" : "stop");
+
             if (isInterruptEnabled)
                 for (uint8_t i = 0; i < 4; i++)
+                {
+                    sensorCtx.pump.set(true);
                     sensorCtx.sensors[i].enableInterrupt();
+                }
             else
             {
                 for (uint8_t i = 0; i < 4; i++)
+                {
+                    sensorCtx.pump.set(false);
                     sensorCtx.sensors[i].disableInterrupt();
-                MainApplication::pushDataToSupabase(&inetCtx, intCounter);
+                }
+                int16_t res = MainApplication::pushDataToSupabase(&inetCtx, intCounter);
+                printk("Supabase push result: %d\n", res);
+                if (res == -ENOTCONN)
+                {
+                    printk("WiFi is not connected\n");
+                    sys_reboot(SYS_REBOOT_COLD); // Assume it's Hang
+                }
                 memset(intCounter, 0, sizeof(intCounter));
             }
         }
+        prevPressed = pressed;
 
-        k_yield();
+        k_msleep(10);
     }
 }
