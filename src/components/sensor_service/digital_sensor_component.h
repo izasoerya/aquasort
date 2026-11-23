@@ -29,9 +29,11 @@ public:
     DigitalSensorComponent(const gpio_dt_spec *pin);
 
     const int8_t begin();
+    const int8_t beginOutput();
     const int8_t beginInterrupt(std::function<void()> cb);
-    int8_t enableInterrupt();
+    int8_t enableInterrupt(gpio_flags_t mode = GPIO_INT_EDGE_TO_ACTIVE);
     int8_t disableInterrupt();
+    const int8_t set(bool state);
     const bool state();
 };
 

@@ -11,6 +11,13 @@ const int8_t DigitalSensorComponent::begin()
     return false;
 }
 
+const int8_t DigitalSensorComponent::beginOutput()
+{
+    if (!gpio_is_ready_dt(_pin))
+        return -ENODEV;
+    return gpio_pin_configure_dt(_pin, GPIO_OUTPUT_INACTIVE);
+}
+
 const int8_t DigitalSensorComponent::beginInterrupt(std::function<void()> cb)
 {
     int result = begin();
@@ -25,14 +32,19 @@ const int8_t DigitalSensorComponent::beginInterrupt(std::function<void()> cb)
     return result;
 }
 
-int8_t DigitalSensorComponent::enableInterrupt()
+int8_t DigitalSensorComponent::enableInterrupt(gpio_flags_t mode)
 {
-    return gpio_pin_interrupt_configure_dt(_pin, GPIO_INT_EDGE_TO_ACTIVE);
+    return gpio_pin_interrupt_configure_dt(_pin, mode);
 }
 
 int8_t DigitalSensorComponent::disableInterrupt()
 {
     return gpio_pin_interrupt_configure_dt(_pin, GPIO_INT_DISABLE);
+}
+
+const int8_t DigitalSensorComponent::set(bool state)
+{
+    return gpio_pin_set_dt(_pin, state);
 }
 
 const bool DigitalSensorComponent::state()
