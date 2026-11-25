@@ -4,19 +4,22 @@
 
 struct TaskWiFiContext
 {
-    const char *ssid = "ihza.surya0302";
-    const char *password = "Makanmieayam4kali";
+    const char *ssid = "Subhanallah";
+    const char *password = "muhammadnabiyullah";
+    const char *usernameUGM = "ihza.surya0302";
+    const char *passwordUGM = "Makanmieayam4kali";
     const char *hostname = "aquasort_device";
 
     const char *projectUrl = "https://gothabjdasaphwzrjnto.supabase.co";
     const char *publishKey = "sb_publishable_Dx3vXSh8qdQhM1Zi_V1MTQ_ifqdbX1o";
     const char *table = "Aquasort_sensor";
 
-    InternetUGM wifi;
+    InternetUGM ugmWiFi;
+    WiFiService basicWiFi;
     SupabaseService supa;
 
     TaskWiFiContext() : supa(SupabaseService(projectUrl, publishKey))
     {
-        wifi.setHostname(hostname);
+        ugmWiFi.setHostname(hostname);
     }
 };
