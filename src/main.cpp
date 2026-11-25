@@ -9,11 +9,10 @@ int main()
     TaskSensorContext sensorCtx;
     TaskWiFiContext inetCtx;
 
-    while (!MainApplication::beginInternet(&inetCtx))
-    {
-        printk("Retrying Wi-Fi in 5 s...\n");
-        k_sleep(K_SECONDS(5));
-    }
+    bool connected = MainApplication::beginInternet(&inetCtx);
+    if (!connected)
+        sys_reboot(SYS_REBOOT_COLD); // Assume it's Hang
+
     OTAService otaService;
     if (otaService.start(8080) == 0)
         OTAService::confirmImage();
