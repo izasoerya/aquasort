@@ -123,6 +123,22 @@ int WiFiService::connect(const char *ssid, const char *psk, k_timeout_t timeout)
     return 0;
 }
 
+int WiFiService::disconnect()
+{
+    net_if *iface = _iface != nullptr ? _iface : net_if_get_default();
+    if (iface == nullptr)
+        return -ENODEV;
+
+    // A user-requested disconnect (reason ASSOC_LEAVE) also stops
+    // CONFIG_ESP32_WIFI_STA_RECONNECT from retrying the previous SSID.
+    int ret = net_mgmt(NET_REQUEST_WIFI_DISCONNECT, iface, nullptr, 0);
+    _connect_status = -1;
+    if (ret == -EALREADY)
+        ret = 0; // already disconnected
+    k_msleep(500); // let the driver settle back to idle before a new connect
+    return ret;
+}
+
 const char *WiFiService::localIP()
 {
     static char address[NET_IPV4_ADDR_LEN];

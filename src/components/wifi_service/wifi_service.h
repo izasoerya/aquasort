@@ -127,6 +127,13 @@ public:
      */
     virtual int connect(const char *ssid, const char *psk, k_timeout_t timeout = K_SECONDS(15));
 
+    /**
+     * @brief Drop the current association and stop the driver's auto-reconnect to it.
+     * @retval 0         Disconnected, or nothing to disconnect.
+     * @retval -ENODEV   Default network interface unavailable.
+     */
+    int disconnect();
+
     const char *localIP();
 
     esp_err_t setTxPower(wifi_tx_power power = WIFI_TX_POWER_8_5_DBM);
