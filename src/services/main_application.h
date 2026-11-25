@@ -42,9 +42,6 @@ public:
     {
         TaskWiFiContext *ctx = static_cast<TaskWiFiContext *>(pvParam);
 
-        if (ctx->wifi.isConnected() && ctx->wifi.localIP() != nullptr)
-            return true; // fast path: already online
-
         int ret = ctx->wifi.connect(ctx->ssid, ctx->password, K_SECONDS(15));
         if (ret != 0)
         {
