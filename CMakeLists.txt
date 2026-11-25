@@ -7,6 +7,7 @@ target_sources(app PRIVATE
     src/components/sensor_service/digital_sensor_component.cpp
     src/components/sensor_service/pass_counter_component.cpp
     src/components/wifi_service/wifi_service.cpp
+    src/components/wifi_service/internet_ugm.cpp
     src/components/supabase_service/supabase_service.cpp
     src/components/ota_service/ota_service.cpp
 )

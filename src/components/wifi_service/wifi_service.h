@@ -30,14 +30,16 @@ enum wifi_tx_power
 class WiFiService
 {
 protected:
+    // content_type == nullptr omits the Content-Type header.
     int postInternal(const char *url, const char *payload, bool secure, const char *ca_cert,
-                     const char *const *header_fields);
+                     const char *const *header_fields,
+                     const char *content_type = "application/json");
 
     int postSecureWithHeaders(const char *url, const char *payload, const char *ca_cert,
                               const char *const *header_fields);
 
     int sendRequest(int sock, const char *host, const char *path, const char *payload,
-                    const char *const *header_fields);
+                    const char *const *header_fields, const char *content_type);
 
 private:
     net_if *_iface = nullptr;
@@ -56,6 +58,8 @@ private:
         {
             const wifi_status *status = static_cast<const wifi_status *>(cb->info);
             self->_connect_status = status->status;
+            // 0 = ok, 1 = fail, 2 = wrong password, 3 = timeout, 4 = AP not found
+            printk("[wifi] connect result: %d\n", status->status);
             if (status->status == 0)
             {
                 k_sem_give(&self->_connected_sem);
@@ -67,6 +71,7 @@ private:
         }
         else if (mgmt_event == NET_EVENT_WIFI_DISCONNECT_RESULT)
         {
+            printk("[wifi] disconnected\n");
             self->_connect_status = -1;
         }
     }
@@ -82,6 +87,7 @@ private:
                 const net_if_addr_ipv4 &address = iface->config.ip.ipv4->unicast[i];
                 if (address.ipv4.addr_type == NET_ADDR_DHCP)
                 {
+                    printk("[wifi] DHCP address assigned\n");
                     k_sem_give(&self->_ipv4_sem);
                 }
             }
@@ -111,7 +117,7 @@ public:
     /**
      * @brief           Connect to Wi-Fi using an SSID and pre-shared key.
      * @param ssid      Null-terminated Wi-Fi network name.
-     * @param psk       Null-terminated pre-shared key.
+     * @param psk       Null-terminated pre-shared key, or null/empty for an open network.
      * @param timeout   Maximum time to wait for association and DHCP for each stage.
      *
      * @retval `0`            Wi-Fi association and DHCP succeeded.
@@ -119,7 +125,7 @@ public:
      * @retval `-ETIMEDOUT`   Association or DHCP timed out.
      * @retval `-EIO`         Wi-Fi connection failed.
      */
-    int connect(const char *ssid, const char *psk, k_timeout_t timeout = K_SECONDS(15));
+    virtual int connect(const char *ssid, const char *psk, k_timeout_t timeout = K_SECONDS(15));
 
     const char *localIP();
 

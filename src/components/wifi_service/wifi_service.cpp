@@ -32,6 +32,9 @@ int WiFiService::setHostname(const char *hostname)
 
 int WiFiService::connect(const char *ssid, const char *psk, k_timeout_t timeout)
 {
+    if (ssid == nullptr || ssid[0] == '\0')
+        return -EINVAL;
+
     _iface = net_if_get_default();
     if (!_iface)
         return -ENODEV;
@@ -58,25 +61,64 @@ int WiFiService::connect(const char *ssid, const char *psk, k_timeout_t timeout)
     wifi_connect_req_params params = {};
     params.ssid = reinterpret_cast<const uint8_t *>(ssid);
     params.ssid_length = strlen(ssid);
-    params.psk = reinterpret_cast<const uint8_t *>(psk);
-    params.psk_length = strlen(psk);
-    params.security = WIFI_SECURITY_TYPE_PSK;
+    if (psk != nullptr && psk[0] != '\0')
+    {
+        params.psk = reinterpret_cast<const uint8_t *>(psk);
+        params.psk_length = strlen(psk);
+        params.security = WIFI_SECURITY_TYPE_PSK;
+    }
+    else
+    {
+        params.security = WIFI_SECURITY_TYPE_NONE;
+    }
     params.channel = WIFI_CHANNEL_ANY;
     params.band = WIFI_FREQ_BAND_2_4_GHZ;
 
     int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, _iface, &params, sizeof(params));
-    if (ret != 0)
+    if (ret == -EALREADY)
+    {
+        // The driver is already connecting on its own (CONFIG_ESP32_WIFI_STA_RECONNECT).
+        // It rejects our request and also raises a synthetic CONN_FAIL result for it, so
+        // the result event cannot be trusted here: wait until its own attempt succeeds.
+        printk("[wifi] driver already connecting, waiting for it\n");
+        k_timepoint_t deadline = sys_timepoint_calc(timeout);
+        while (!isConnected())
+        {
+            if (sys_timepoint_expired(deadline))
+            {
+                printk("[wifi] timed out waiting for driver to join %s\n", ssid);
+                return -ETIMEDOUT;
+            }
+            k_msleep(100);
+        }
+    }
+    else if (ret != 0)
+    {
         return ret;
+    }
+    else
+    {
+        // 1. Wait for Wi-Fi association
+        printk("[wifi] joining %s\n", ssid);
+        if (k_sem_take(&_connected_sem, timeout) != 0)
+        {
+            printk("[wifi] timed out joining %s (no connect result)\n", ssid);
+            return -ETIMEDOUT;
+        }
+        if (_connect_status != 0)
+        {
+            // 1 = fail, 2 = wrong password, 3 = timeout, 4 = AP not found
+            printk("Wi-Fi connect result status: %d\n", _connect_status);
+            return -EIO;
+        }
+    }
 
-    // 1. Wait for Wi-Fi association
-    if (k_sem_take(&_connected_sem, timeout) != 0)
+    // 2. Wait for DHCP IPv4 lease, unless one is already assigned
+    if (localIP() == nullptr && k_sem_take(&_ipv4_sem, timeout) != 0)
+    {
+        printk("[wifi] joined %s but timed out waiting for DHCP\n", ssid);
         return -ETIMEDOUT;
-    if (_connect_status != 0)
-        return -EIO;
-
-    // 2. Wait for DHCP IPv4 lease
-    if (k_sem_take(&_ipv4_sem, timeout) != 0)
-        return -ETIMEDOUT;
+    }
 
     return 0;
 }
@@ -118,7 +160,8 @@ int WiFiService::postSecureWithHeaders(const char *url, const char *payload, con
 }
 
 int WiFiService::postInternal(const char *url, const char *payload, bool secure,
-                              const char *ca_cert, const char *const *header_fields)
+                              const char *ca_cert, const char *const *header_fields,
+                              const char *content_type)
 {
     if (url == nullptr || payload == nullptr)
     {
@@ -282,7 +325,7 @@ int WiFiService::postInternal(const char *url, const char *payload, bool secure,
     // Zephyr's http_client_req() is not used here: its parser rejects the valid
     // "Content-Range: */*" header Supabase sends on inserts (HPE_INVALID_CONTENT_RANGE).
     // We only need the status code, so send the request and read the status line directly.
-    int http_status = sendRequest(sock, host, request_path, payload, header_fields);
+    int http_status = sendRequest(sock, host, request_path, payload, header_fields, content_type);
     zsock_close(sock);
     return http_status;
 }
@@ -303,7 +346,7 @@ static int sendAll(int sock, const char *data, size_t length)
 }
 
 int WiFiService::sendRequest(int sock, const char *host, const char *path, const char *payload,
-                             const char *const *header_fields)
+                             const char *const *header_fields, const char *content_type)
 {
     timeval timeout = {};
     timeout.tv_sec = 10;
@@ -314,10 +357,14 @@ int WiFiService::sendRequest(int sock, const char *host, const char *path, const
     int length = snprintf(header, sizeof(header),
                           "POST %s HTTP/1.1\r\n"
                           "Host: %s\r\n"
-                          "Content-Type: application/json\r\n"
                           "Content-Length: %u\r\n"
                           "Connection: close\r\n",
                           path, host, static_cast<unsigned>(payload_length));
+    if (content_type != nullptr && length >= 0 && static_cast<size_t>(length) < sizeof(header))
+    {
+        length += snprintf(header + length, sizeof(header) - length, "Content-Type: %s\r\n",
+                           content_type);
+    }
     for (size_t i = 0; header_fields != nullptr && header_fields[i] != nullptr; ++i)
     {
         if (length < 0 || static_cast<size_t>(length) >= sizeof(header))
